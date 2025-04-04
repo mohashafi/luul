@@ -1,0 +1,70 @@
+projectName: itu-somalia-dev
+apiVersion: unicccloud.org/v1alpha1
+kind: CWHv2
+security:
+  enabled: true
+apps:
+  - name: nginx-ingress
+    appType: nginx-ingress
+    version: 0.0.6
+    values:
+      hosts:
+        - hostNames:
+            - "somalia.itu-somalia-dev.parana.un-icc.cloud"
+            - "itu-somalia-dev.parana.un-icc.cloud"
+          appName: web
+  - name: web
+    appType: standard-app
+    version: 0.0.38
+    dockerfile: Dockerfile
+    values:
+      cpu: 400m
+      memory: 512Mi
+      containerPort: 8080
+      postDeployScript: "./postDeploy.sh"
+      secret:
+        - name: DB_HOST
+          secret_key: db_host
+        - name: DB_PASSWORD
+          secret_key: user_db_password
+        - name: SMTP_USER
+          secret_key: aws_access_key
+        - name: SMTP_PASSWORD
+          secret_key: aws_smtp_password
+        - name: AWS_SECRET_ACCESS_KEY
+          secret_key: aws_secret_access_key
+        - name: AWS_ACCESS_KEY_ID
+          secret_key: aws_access_key
+      env:
+        HOST_SOMALIA: https://somalia.itu-somalia-dev.parana.un-icc.cloud/
+        ENV: dev
+        UNICC: true
+        DB_USER: itusomalia
+        DB_NAME: itusomalia
+        TYPO3_CONTEXT: Development/unicc
+      sharedStorage:
+        enabled: true
+        mountPaths:
+          - /var/www/public/fileadmin/
+          - /var/www/var/
+
+  - name: shared-storage
+    appType: efs-storage
+    version: 0.0.10
+
+  - name: redis
+    version: 0.1.8
+    appType: redis
+    values:
+      maxmemory: 100mb
+      cpu: 100m
+      maxmemoryPolicy: allkeys-lfu
+
+  - name: dump-tool
+    appType: dump-tool
+    version: 0.0.3
+    values:
+      schedule: "0 7 * * *"
+      projectName: itu-somalia-dev
+      dbName: "itusomalia"
+      dbUser: "itusomalia"

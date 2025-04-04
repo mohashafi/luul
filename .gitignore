@@ -1,0 +1,17 @@
+/bin/
+/public/*
+!/public/.htaccess
+/var/
+/vendor/
+/typo3_core/
+*.idea
+*.project
+*.vscode
+.env
+.DS_Store
+.idea
+*.iml
+/.env
+/.vscode
+/data/*
+/logs/*

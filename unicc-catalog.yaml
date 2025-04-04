@@ -1,0 +1,27 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: itu-somalia
+  description: itu-somalia
+  tags: 
+    - active
+    - itu-p-d22-r
+    - dds-developers
+  annotations:
+    backstage.io/kubernetes-id: itu-somalia
+    backstage.io/kubernetes-label-selector: 'cwh-project-id=itu-somalia'
+  links:
+    - url: https://observ.unicc.org/s/pops_itu_cwh_somalia
+      title: Logs & Metrics
+      icon: web
+    - url: https://docs.uniccplatform.cloud/
+      title: CWH Docs
+      icon: web
+spec:
+  type: website
+  lifecycle: development
+  owner: dds-developers
+  system: cwh
+  dependsOn: 
+    - component:itu-somalia-infra

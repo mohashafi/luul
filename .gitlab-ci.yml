@@ -1,0 +1,102 @@
+---
+stages:
+  - write_configuration
+  - build
+  - deploy
+
+variables:
+  KEEP_RELEASES: "3"
+  LATEST_PROJECT_PATH: "/var/builds/${PROJECT_NAME}/latest"
+  LATEST_PROJECT_SHARED_PATH: "/var/builds/${PROJECT_NAME}/latest/shared"
+  LATEST_PROJECT_DOMAIN: "latest.${PROJECT_NAME}.${SERVER}.macopedia-dev.pl"
+  MYSQL_ROOT_PASSWORD: root
+  typo3DatabaseName: typo3
+  typo3DatabaseHost: mariadb
+  typo3DatabaseUsername: root
+  typo3DatabasePassword: root
+  CONTAINER_TEST_IMAGE: $CI_REGISTRY_IMAGE:latest
+
+write_configuration_latest:
+  stage: write_configuration
+  variables:
+    GIT_STRATEGY: "fetch"
+    GIT_SUBMODULE_STRATEGY: "recursive"
+  environment:
+    name: latest
+    url: https://${LATEST_PROJECT_DOMAIN}
+  only:
+    - main
+  tags:
+    - i6 integracja6
+  script:
+    - if [[ ! -e $LATEST_PROJECT_PATH ]]; then mkdir -p $LATEST_PROJECT_PATH; fi
+    - if [[ ! -e $LATEST_PROJECT_PATH/releases ]]; then mkdir -p $LATEST_PROJECT_PATH/releases; fi
+    - if [[ ! -e $LATEST_PROJECT_PATH/shared/fileadmin ]]; then mkdir -p $LATEST_PROJECT_PATH/shared/fileadmin; fi
+    - if [[ ! -e $LATEST_PROJECT_PATH/shared/var/log ]]; then mkdir -p $LATEST_PROJECT_PATH/shared/var/log; fi
+    - if [[ ! -e $LATEST_PROJECT_PATH/releases/$CI_PIPELINE_ID ]]; then mkdir -p $LATEST_PROJECT_PATH/releases/$CI_PIPELINE_ID; fi
+    - if [[ ! -e ./config/.gitlab ]]; then mkdir -p ./config/.gitlab; fi
+    - |
+      cat > ./config/.gitlab/env.php << EOF
+      <?php
+      return [
+          'env' => '$PROJECT_ENV',
+          'DB' => [
+              'Connections' => [
+                  'Default' => [
+                    'dbname' => '$PROJECT_ENV_DB_NAME',
+                    'host' => '$PROJECT_ENV_DB_HOST',
+                    'password' => '$PROJECT_ENV_DB_PASSWORD',
+                    'port' => '$PROJECT_ENV_DB_PORT',
+                    'user' => '$PROJECT_ENV_DB_USER',
+                  ],
+              ],
+          ],
+      ];
+      EOF
+
+.build:
+  stage: build
+  variables:
+    GIT_STRATEGY: "none"
+    DOCKER_CONFIG: ".docker-config/"
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - vendor/
+  tags:
+    - i6 integracja6
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+
+build_container_latest:
+  extends: .build
+  stage: build
+  only:
+    - main
+  dependencies:
+    - write_configuration_latest
+  script:
+    - docker pull $CONTAINER_TEST_IMAGE || true
+    - docker build --cache-from $CONTAINER_TEST_IMAGE --tag $CONTAINER_TEST_IMAGE .
+    - docker push $CONTAINER_TEST_IMAGE
+
+deploy_latest:
+  stage: deploy
+  dependencies:
+    - build_container_latest
+  variables:
+    GIT_STRATEGY: "fetch"
+    GIT_SUBMODULE_STRATEGY: "recursive"
+  environment:
+    name: latest
+    url: https://${LATEST_PROJECT_DOMAIN}
+  only:
+    - main
+  tags:
+    - i6 integracja6
+  script:
+    - docker stop somalia-typo3 || true
+    - docker rm somalia-typo3 || true
+    - docker run -d --name somalia-typo3 -p 8021:80 -v /var/builds/somalia/latest/shared/fileadmin:/code/public/fileadmin -v /var/builds/somalia/latest/shared/typo3temp:/code/public/typo3temp $CONTAINER_TEST_IMAGE
+    - docker exec -u www-data somalia-typo3 /bin/bash -c 'composer install -d /code --prefer-dist --no-progress --optimize-autoloader'
+
